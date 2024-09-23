@@ -48,16 +48,16 @@
 ;; Function to create a new medical record
 (define-public (create-medical-record (record-id int) (encrypted-content (buff 1000)))
   (let ((sender tx-sender))
-    (match (map-insert medical-records-map
-             {record-id: record-id}
-             {
-               owner: sender,
-               record-content: encrypted-content
-             })
-      success (match (log-action record-id "Record Created")
-                 log-success (ok true)
-                 log-error (err "Failed to log action"))
-      failure (err "Failed to create record"))
+    (if (map-insert medical-records-map
+          {record-id: record-id}
+          {
+            owner: sender,
+            record-content: encrypted-content
+          })
+      (begin
+        (asserts! (is-ok (log-action record-id "Record Created")) (err u1))
+        (ok true))
+      (err u2)) ;; Failed to create record
   )
 )
 
@@ -66,18 +66,18 @@
   (let ((sender tx-sender))
     (match (map-get? medical-records-map {record-id: record-id})
       record (if (is-eq sender (get owner record))
-        (match (map-insert record-access-map
-                 {record-id: record-id, authorized-user: user}
-                 {
-                   is-authorized: true,
-                   expiry-block-height: expiry
-                 })
-          success (match (log-action record-id "Access Granted")
-                    log-success (ok true)
-                    log-error (err "Failed to log action"))
-          failure (err "Failed to grant access"))
-        (err "Not Authorized to Grant Access"))
-      (err "Record Not Found"))
+        (if (map-insert record-access-map
+              {record-id: record-id, authorized-user: user}
+              {
+                is-authorized: true,
+                expiry-block-height: expiry
+              })
+          (begin
+            (asserts! (is-ok (log-action record-id "Access Granted")) (err u3))
+            (ok true))
+          (err u4)) ;; Failed to grant access
+        (err u5)) ;; Not Authorized to Grant Access
+      (err u6)) ;; Record Not Found
   )
 )
 
@@ -86,18 +86,18 @@
   (let ((sender tx-sender))
     (match (map-get? medical-records-map {record-id: record-id})
       record (if (is-eq sender (get owner record))
-        (match (map-insert record-access-map
-                 {record-id: record-id, authorized-user: user}
-                 {
-                   is-authorized: false,
-                   expiry-block-height: none
-                 })
-          success (match (log-action record-id "Access Revoked")
-                    log-success (ok true)
-                    log-error (err "Failed to log action"))
-          failure (err "Failed to revoke access"))
-        (err "Not Authorized to Revoke Access"))
-      (err "Record Not Found"))
+        (if (map-insert record-access-map
+              {record-id: record-id, authorized-user: user}
+              {
+                is-authorized: false,
+                expiry-block-height: none
+              })
+          (begin
+            (asserts! (is-ok (log-action record-id "Access Revoked")) (err u7))
+            (ok true))
+          (err u8)) ;; Failed to revoke access
+        (err u9)) ;; Not Authorized to Revoke Access
+      (err u10)) ;; Record Not Found
   )
 )
 
@@ -110,11 +110,11 @@
                           (or (is-none (get expiry-block-height permission))
                               (>= (default-to u0 (get expiry-block-height permission)) current-block-height)))
         (match (map-get? medical-records-map {record-id: record-id})
-          record (match (log-action record-id "Record Accessed")
-                   log-success (ok (get record-content record))
-                   log-error (err "Failed to log access"))
-          (err "Record Not Found"))
-        (err "Access Denied or Expired"))
-      (err "No Permission"))
+          record (begin
+                   (asserts! (is-ok (log-action record-id "Record Accessed")) (err u11))
+                   (ok (get record-content record)))
+          (err u12)) ;; Record Not Found
+        (err u13)) ;; Access Denied or Expired
+      (err u14)) ;; No Permission
   )
 )
